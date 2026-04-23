@@ -24,10 +24,6 @@ export default async function LandingPage() {
 
       {/* Hero */}
       <section className="text-center px-4 pt-24 pb-20 max-w-4xl mx-auto">
-        <div className="inline-flex items-center gap-2 bg-blue-900/40 border border-blue-700/50 rounded-full px-4 py-1.5 text-sm text-blue-300 mb-8">
-          <Zap className="w-3.5 h-3.5" />
-          Powered by Claude AI
-        </div>
         <h1 className="text-5xl md:text-6xl font-extrabold leading-tight mb-6">
           Land your dream job with{" "}
           <span className="text-blue-400">AI career coaching</span>
