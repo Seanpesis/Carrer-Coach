@@ -1,6 +1,8 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+
+export const maxDuration = 60;
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase";
 import { CAREER_COACH_SYSTEM_PROMPT, AUDIT_PROMPT } from "@/lib/prompts";
@@ -58,7 +60,7 @@ export async function POST(req: NextRequest) {
   let responseText: string;
   try {
     const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 2000,
       system: CAREER_COACH_SYSTEM_PROMPT,
       messages: [

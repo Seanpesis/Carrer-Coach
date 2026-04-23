@@ -1,6 +1,8 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+
+export const maxDuration = 60;
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase";
 import { chatRatelimit } from "@/lib/ratelimit";
@@ -89,7 +91,7 @@ export async function POST(req: NextRequest) {
   let stream: Awaited<ReturnType<typeof client.messages.stream>>;
   try {
     stream = await client.messages.stream({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 1500,
       system: CAREER_COACH_SYSTEM_PROMPT,
       messages: [
