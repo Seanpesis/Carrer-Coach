@@ -1,4 +1,4 @@
-import { Pinecone } from "@pinecone-database/pinecone";
+import { Pinecone, RecordMetadata } from "@pinecone-database/pinecone";
 
 const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY! });
 const INDEX_NAME = process.env.PINECONE_INDEX_NAME ?? "careercoach-resumes";
@@ -43,7 +43,7 @@ export async function queryResumeChunks(
 }
 
 export async function upsertResumeChunks(
-  vectors: { id: string; values: number[]; metadata: Record<string, unknown> }[],
+  vectors: { id: string; values: number[]; metadata: RecordMetadata }[],
   namespace: string
 ) {
   const index = await getResumeIndex();
