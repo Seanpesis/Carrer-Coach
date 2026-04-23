@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /coach
+Disallow: /api
+
+Sitemap: https://careercoach-ai.vercel.app/sitemap.xml
