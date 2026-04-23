@@ -1,10 +1,10 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-
-export const maxDuration = 60;
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase";
+
+export const runtime = "edge";
 
 const bodySchema = z.object({
   message: z.string().min(1).max(2000),
@@ -65,26 +65,42 @@ export async function POST(req: NextRequest) {
   }
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const stream = await client.messages.stream({
-    model: "claude-sonnet-4-6",
-    max_tokens: 1000,
-    system: COVER_LETTER_PROMPT,
-    messages: [
-      {
-        role: "user",
-        content: `--- JOB DESCRIPTION ---\n${application.job_description}\n\n--- MY RESUME ---\n${resumeContext}\n\n--- INSTRUCTIONS ---\n${message}`,
-      },
-    ],
-  });
+
+  let anthropicStream: ReturnType<typeof client.messages.stream>;
+  try {
+    anthropicStream = client.messages.stream({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1000,
+      system: COVER_LETTER_PROMPT,
+      messages: [
+        {
+          role: "user",
+          content: `--- JOB DESCRIPTION ---\n${application.job_description}\n\n--- MY RESUME ---\n${resumeContext}\n\n--- INSTRUCTIONS ---\n${message}`,
+        },
+      ],
+    });
+  } catch (err) {
+    return new Response(
+      `Claude API error: ${err instanceof Error ? err.message : String(err)}`,
+      { status: 500 }
+    );
+  }
+
+  const encoder = new TextEncoder();
 
   const readable = new ReadableStream({
-    async start(controller) {
-      for await (const chunk of stream) {
-        if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
-          controller.enqueue(new TextEncoder().encode(chunk.delta.text));
-        }
-      }
-      controller.close();
+    start(controller) {
+      anthropicStream.on("text", (text) => {
+        controller.enqueue(encoder.encode(text));
+      });
+      anthropicStream.on("error", (err) => {
+        console.error("[cover-letter] Anthropic stream error:", err);
+        controller.enqueue(encoder.encode(`\n\n[Stream error: ${err.message}]`));
+        controller.close();
+      });
+      anthropicStream.on("finalMessage", () => {
+        controller.close();
+      });
     },
   });
 

@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 
 export const maxDuration = 60;
+export const runtime = "nodejs";
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase";
 import { CAREER_COACH_SYSTEM_PROMPT, AUDIT_PROMPT } from "@/lib/prompts";

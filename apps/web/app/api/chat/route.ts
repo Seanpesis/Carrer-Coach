@@ -1,12 +1,12 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-
-export const maxDuration = 60;
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase";
 import { chatRatelimit } from "@/lib/ratelimit";
 import { CAREER_COACH_SYSTEM_PROMPT, buildRAGPrompt } from "@/lib/prompts";
+
+export const runtime = "edge";
 
 const bodySchema = z.object({
   message: z.string().min(1).max(2000),
@@ -27,7 +27,6 @@ export async function POST(req: NextRequest) {
 
   const { message, applicationId } = parsed.data;
 
-  // Resolve Clerk userId → internal UUID
   const { data: dbUser } = await supabaseAdmin
     .from("users")
     .select("id")
@@ -52,7 +51,6 @@ export async function POST(req: NextRequest) {
     .order("created_at", { ascending: true })
     .limit(20);
 
-  // RAG: embed query and retrieve resume chunks, fall back to raw_text
   const resumeData = application.resumes as { pinecone_namespace?: string; raw_text?: string } | null;
   const namespace = resumeData?.pinecone_namespace;
   const rawText = resumeData?.raw_text ?? "";
@@ -69,7 +67,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // If Pinecone returned nothing, use raw_text (truncated to avoid token limits)
   if (!resumeChunks && rawText) {
     resumeChunks = rawText.slice(0, 6000);
   }
@@ -88,9 +85,9 @@ export async function POST(req: NextRequest) {
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-  let stream: Awaited<ReturnType<typeof client.messages.stream>>;
+  let anthropicStream: ReturnType<typeof client.messages.stream>;
   try {
-    stream = await client.messages.stream({
+    anthropicStream = client.messages.stream({
       model: "claude-sonnet-4-6",
       max_tokens: 1500,
       system: CAREER_COACH_SYSTEM_PROMPT,
@@ -103,37 +100,40 @@ export async function POST(req: NextRequest) {
       ],
     });
   } catch (err) {
-    return new Response(`Claude API error: ${err instanceof Error ? err.message : err}`, { status: 500 });
+    return new Response(
+      `Claude API error: ${err instanceof Error ? err.message : String(err)}`,
+      { status: 500 }
+    );
   }
 
+  const encoder = new TextEncoder();
   let fullResponse = "";
+
   const readable = new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of stream) {
-          if (
-            chunk.type === "content_block_delta" &&
-            chunk.delta.type === "text_delta"
-          ) {
-            const text = chunk.delta.text;
-            fullResponse += text;
-            controller.enqueue(new TextEncoder().encode(text));
-          }
-        }
-      } catch (err) {
+    start(controller) {
+      anthropicStream.on("text", (text) => {
+        fullResponse += text;
+        controller.enqueue(encoder.encode(text));
+      });
+
+      anthropicStream.on("error", (err) => {
+        console.error("[chat] Anthropic stream error:", err);
         controller.enqueue(
-          new TextEncoder().encode(`\n\n[Stream error: ${err instanceof Error ? err.message : err}]`)
+          encoder.encode(`\n\n[Stream error: ${err.message}]`)
         );
-      } finally {
+        controller.close();
+      });
+
+      anthropicStream.on("finalMessage", () => {
         controller.close();
         if (fullResponse) {
-          await supabaseAdmin.from("chat_messages").insert({
+          supabaseAdmin.from("chat_messages").insert({
             application_id: applicationId,
             role: "assistant",
             content: fullResponse,
           });
         }
-      }
+      });
     },
   });
 
