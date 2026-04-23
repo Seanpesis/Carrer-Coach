@@ -51,7 +51,7 @@ export default async function DashboardPage() {
           <span className="text-sm text-slate-400">
             {user?.emailAddresses[0]?.emailAddress}
           </span>
-          <UserButton afterSignOutUrl="/" />
+          <UserButton />
         </div>
       </nav>
 
